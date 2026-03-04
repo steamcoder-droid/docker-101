@@ -666,8 +666,8 @@
 
     <script>
         // API endpoints
-        const AUTH_API = "http://3.15.33.107:4000";
-        const PRODUCTS_API = "http://3.15.33.107:5000";
+        const AUTH_API = "/api/auth";
+        const PRODUCTS_API = "/api/products";
         
         // Debug logging
         const debugLogs = [];
@@ -728,7 +728,7 @@
                 debugLog(`Auth API (${AUTH_API}): ${authResponse.status}`, 'success');
             } catch (error) {
                 debugLog(`Auth API (${AUTH_API}): FAILED - ${error.message}`, 'error');
-                debugLog('Make sure your auth server is running on port 4000', 'error');
+                debugLog('Make sure your auth server is running and nginx is proxying /api/auth', 'error');
             }
             
             // Check Products API
@@ -737,7 +737,7 @@
                 debugLog(`Products API (${PRODUCTS_API}): ${productsResponse.status}`, 'success');
             } catch (error) {
                 debugLog(`Products API (${PRODUCTS_API}): FAILED - ${error.message}`, 'error');
-                debugLog('Make sure your products server is running on port 5000', 'error');
+                debugLog('Make sure your products server is running and nginx is proxying /api/products', 'error');
             }
         }
         
