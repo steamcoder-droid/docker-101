@@ -1,20 +1,44 @@
 services:
-  nginx:
-    image: nginx:alpine
+  traefik:
+    image: traefik:v2.11
+    container_name: traefik
+    restart: always
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge=true"
+      - "--certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.myresolver.acme.email=emmanuel.salau@yahoo.com"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.entrypoint=web"
     ports:
       - "80:80"
       - "443:443"
+      - "8080:8080"
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
-    depends_on:
-      - auth
-      - frontend
-      - product
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./letsencrypt:/letsencrypt"
+    networks:
+      - web
 
   auth:
     build: ./auth-service
+    networks:
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=web"
+      - "traefik.http.routers.auth.rule=Host(`mm.publicvm.com`,`www.mm.publicvm.com`) && PathPrefix(`/api/auth`)"
+      - "traefik.http.routers.auth.entrypoints=websecure"
+      - "traefik.http.routers.auth.tls.certresolver=myresolver"
+      - "traefik.http.routers.auth.priority=100"
+      - "traefik.http.services.auth.loadbalancer.server.port=4000"
+      - "traefik.http.middlewares.auth-stripprefix.stripPrefix.prefixes=/api/auth"
+      - "traefik.http.routers.auth.middlewares=auth-stripprefix"
     env_file:
       - .env
     environment:
@@ -28,14 +52,34 @@ services:
 
   frontend:
     build: ./frontend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=web"
+      - "traefik.http.routers.frontend.rule=Host(`mm.publicvm.com`,`www.mm.publicvm.com`) && PathPrefix(`/`)"
+      - "traefik.http.routers.frontend.priority=1"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=myresolver"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
     expose:
       - "80"
     depends_on:
       - auth
       - product
+    networks:
+      - web
 
   product:
     build: ./product-service
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=web"
+      - "traefik.http.routers.product.rule=Host(`mm.publicvm.com`,`www.mm.publicvm.com`) && PathPrefix(`/api/product`)"
+      - "traefik.http.routers.product.entrypoints=websecure"
+      - "traefik.http.routers.product.tls.certresolver=myresolver"
+      - "traefik.http.routers.product.priority=100"
+      - "traefik.http.services.product.loadbalancer.server.port=5000"
+      - "traefik.http.middlewares.product-stripprefix.stripPrefix.prefixes=/api/product"
+      - "traefik.http.routers.product.middlewares=product-stripprefix"
     env_file:
       - .env
     expose:
@@ -44,7 +88,8 @@ services:
       - db
       - migrate
     restart: always
-
+    networks:
+      - web
   db:
     image: postgres:16.11
     env_file:
@@ -58,6 +103,8 @@ services:
       retries: 5
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - web
 
   migrate:
     image: postgres:16
@@ -70,12 +117,46 @@ services:
       - ./db/migrations:/migrations
       - ./db/migrate.sh:/migrate.sh
     command: ["sh", "/migrate.sh"]
+    networks:
+      - web
 
-  certbot:
-    image: certbot/certbot
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
     volumes:
-      - ./certbot/conf:/etc/letsencrypt
-      - ./certbot/www:/var/www/certbot
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+    networks:
+      - web
+
+  loki:
+    image: grafana/loki:2.9.0
+    container_name: loki
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - web
+
+  promtail:
+    image: grafana/promtail:2.9.0
+    volumes:
+      - /var/log:/var/log
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - ./promtail-config.yml:/etc/promtail/config.yml
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - web
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    networks:
+      - web
 
 volumes: 
   postgres_data:
+
+networks:
+  web:
+    name: web
+    driver: bridge
