@@ -667,7 +667,7 @@
     <script>
         // API endpoints
         const AUTH_API = "/api/auth";
-        const PRODUCTS_API = "/api/products";
+        const PRODUCTS_API = "/api/product";
         
         // Debug logging
         const debugLogs = [];
@@ -724,7 +724,7 @@
             
             // Check Auth API
             try {
-                const authResponse = await fetch(`${AUTH_API}/`, { method: 'HEAD' });
+                const authResponse = await fetch(`${AUTH_API}`, { method: 'HEAD' });
                 debugLog(`Auth API (${AUTH_API}): ${authResponse.status}`, 'success');
             } catch (error) {
                 debugLog(`Auth API (${AUTH_API}): FAILED - ${error.message}`, 'error');
@@ -733,7 +733,7 @@
             
             // Check Products API
             try {
-                const productsResponse = await fetch(`${PRODUCTS_API}/`, { method: 'HEAD' });
+                const productsResponse = await fetch(`${PRODUCTS_API}`, { method: 'HEAD' });
                 debugLog(`Products API (${PRODUCTS_API}): ${productsResponse.status}`, 'success');
             } catch (error) {
                 debugLog(`Products API (${PRODUCTS_API}): FAILED - ${error.message}`, 'error');
